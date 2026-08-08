@@ -3,14 +3,28 @@
    Owns every network call (OpenRouter, AnkiConnect) and all storage. The content
    script is pure UI and page reading; it never sees the API key. */
 
-importScripts(
-  'lib/shim.js',
-  'lib/settings.js',
-  'lib/ledger.js',
-  'lib/openrouter.js',
-  'lib/anki.js',
-  'lib/prompt.js',
-);
+/* A throw inside importScripts aborts evaluation of this whole file, which would
+   leave no click listener registered — the worker would be alive but deaf, and a
+   button press would do nothing with nothing logged anywhere. Catch it, and let the
+   click handler below report it instead. */
+let BOOT_ERROR = null;
+try {
+  importScripts(
+    'lib/shim.js',
+    'lib/settings.js',
+    'lib/ledger.js',
+    'lib/openrouter.js',
+    'lib/anki.js',
+    'lib/prompt.js',
+  );
+} catch (e) {
+  BOOT_ERROR = e;
+  console.error('[Distiller] library import failed:', e);
+}
+
+/* Resolved without depending on lib/shim.js having loaded. Named `ext` rather than
+   `api` because shim.js declares `var api` into this same global scope. */
+const ext = globalThis.api ?? globalThis.browser ?? globalThis.chrome;
 
 /* ---------- toolbar button ---------- */
 
@@ -22,16 +36,16 @@ const INJECT_FILES = ['content/extract.js', 'content/panel.js'];
 async function flagProblem(tabId, message) {
   console.error('[Distiller]', message);
   try {
-    await api.action.setBadgeText({ text: '!', tabId });
-    await api.action.setBadgeBackgroundColor({ color: '#c0342b', tabId });
-    await api.action.setTitle({ tabId, title: `Distiller — ${message}` });
+    await ext.action.setBadgeText({ text: '!', tabId });
+    await ext.action.setBadgeBackgroundColor({ color: '#c0342b', tabId });
+    await ext.action.setTitle({ tabId, title: `Distiller — ${message}` });
   } catch { /* badge APIs are best-effort */ }
 }
 
 async function clearProblem(tabId) {
   try {
-    await api.action.setBadgeText({ text: '', tabId });
-    await api.action.setTitle({ tabId, title: 'Distil this article into Anki cards' });
+    await ext.action.setBadgeText({ text: '', tabId });
+    await ext.action.setTitle({ tabId, title: 'Distil this article into Anki cards' });
   } catch { /* ignore */ }
 }
 
@@ -53,7 +67,7 @@ async function openPanel(tab) {
   // extension holds the "tabs" permission, so checking it here silently refused
   // every page. Try the injection and let the failure explain itself instead.
   try {
-    await api.tabs.sendMessage(tab.id, { type: 'panel:open' });
+    await ext.tabs.sendMessage(tab.id, { type: 'panel:open' });
     await clearProblem(tab.id);
     return; // already injected
   } catch {
@@ -61,15 +75,31 @@ async function openPanel(tab) {
   }
 
   try {
-    await api.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_FILES });
-    await api.tabs.sendMessage(tab.id, { type: 'panel:open' });
+    await ext.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_FILES });
+    await ext.tabs.sendMessage(tab.id, { type: 'panel:open' });
     await clearProblem(tab.id);
   } catch (e) {
     await flagProblem(tab.id, explainInjectionFailure(e, tab));
   }
 }
 
-api.action.onClicked.addListener((tab) => {
+ext.action.onClicked.addListener((tab) => {
+  /* Acknowledge the press before attempting anything that can fail. If this dot
+     never appears on the toolbar button, the worker is not running the handler at
+     all — a completely different fault from injection being refused, and worth
+     being able to tell apart at a glance. clearProblem() removes it on success. */
+  if (tab?.id) {
+    try {
+      ext.action.setBadgeBackgroundColor({ color: '#5a54e0', tabId: tab.id });
+      ext.action.setBadgeText({ text: '•', tabId: tab.id });
+    } catch { /* badge APIs are best-effort */ }
+  }
+
+  if (BOOT_ERROR) {
+    flagProblem(tab?.id, `Distiller failed to start: ${BOOT_ERROR.message || BOOT_ERROR}`);
+    return;
+  }
+
   openPanel(tab).catch((e) => flagProblem(tab?.id, `Unexpected error: ${e?.message || e}`));
 });
 
@@ -201,10 +231,10 @@ const handlers = {
   'ledger:all': () => ledgerAll(),
   'ledger:clear': () => ledgerClear(),
 
-  'options:open': async () => { await api.runtime.openOptionsPage(); return true; },
+  'options:open': async () => { await ext.runtime.openOptionsPage(); return true; },
 };
 
-api.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+ext.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   const handler = handlers[msg?.type];
   if (!handler) return false;
 
@@ -220,8 +250,8 @@ api.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
 /* ---------- first run ---------- */
 
-api.runtime.onInstalled.addListener(async ({ reason }) => {
+ext.runtime.onInstalled.addListener(async ({ reason }) => {
   if (reason === 'install') {
-    await api.runtime.openOptionsPage();
+    await ext.runtime.openOptionsPage();
   }
 });
