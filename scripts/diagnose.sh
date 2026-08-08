@@ -69,56 +69,80 @@ echo "── 3. Will Safari accept the signature? ──"
 if [ -n "$APP" ]; then
   SIGLINE=$(codesign -dv "$APP" 2>&1 | grep -E '^Signature=' | head -1)
   TEAM=$(codesign -dv "$APP" 2>&1 | grep -E '^TeamIdentifier=' | head -1)
+  AUTHORITY=$(codesign -dvvv "$APP" 2>&1 | grep -E '^Authority=' | head -1 | cut -d= -f2-)
   if echo "$SIGLINE" | grep -q adhoc; then
-    warn "Ad-hoc signed ($TEAM)."
-    note "Safari refuses ad-hoc signed extensions unless Develop ▸ Allow Unsigned"
-    note "Extensions is ON — and that switch resets every time Safari restarts."
-    note "Permanent fix: add an Apple ID in Xcode ▸ Settings ▸ Accounts (free is fine),"
-    note "then rebuild with DISTILLER_TEAM_ID=<team id> ./scripts/build-safari.sh"
+    bad "Ad-hoc signed ($TEAM)."
+    note "Safari refuses these — it logs \"Computing the code signing dictionary failed\""
+    note "— unless Develop ▸ Allow Unsigned Extensions is ON, and that switch resets"
+    note "every time Safari restarts."
+    note "Fix: find your team id with"
+    note "  security find-certificate -a -c 'Apple Development' -p | openssl x509 -noout -subject"
+    note "(the OU field is the team id), then rebuild:"
+    note "  DISTILLER_TEAM_ID=<team id> ./scripts/build-safari.sh --open"
   else
-    ok "$SIGLINE / $TEAM"
+    ok "Signed as ${AUTHORITY:-unknown} / $TEAM"
+    note "A real team identifier is what Safari needs; Allow Unsigned Extensions is"
+    note "no longer required."
   fi
+  # Gatekeeper judges *distribution*, so an Apple Development signature is rejected
+  # by design. That is not what stops Safari, so it is a note, not a failure.
   spctl -a -t exec "$APP" >/dev/null 2>&1 \
     && ok "Gatekeeper accepts the app." \
-    || warn "Gatekeeper rejects the app — expected without a Developer ID; see above."
+    || note "Gatekeeper rejects the app: normal for a locally-signed build, and not"
+  spctl -a -t exec "$APP" >/dev/null 2>&1 || note "what prevents Safari from loading the extension."
 fi
 
 echo
 echo "── 4. Has Safari actually tried to load it? ──"
-# Only Safari's own processes count here. Launch Services and the build system also
-# mention the bundle id, and matching those would report a load that never happened.
+# Only Safari's own processes count. Launch Services and the build system mention the
+# bundle id too, and matching those would report a load that never happened.
+# Scope to Safari's Extensions subsystem. Without the category filter this drowns in
+# sqlite and TCC chatter that merely happens to mention the bundle path.
 HITS=$(log show --last 2h --info --debug --style compact \
-  --predicate '(process == "Safari" OR process CONTAINS[c] "Distiller Extension" OR process CONTAINS[c] "WebExtension") AND (eventMessage CONTAINS[c] "distiller" OR eventMessage CONTAINS[c] "jesjohannesen")' \
-  2>/dev/null | grep -v "^Timestamp" | head -12)
+  --predicate '(subsystem == "com.apple.Safari" AND category == "Extensions") OR process CONTAINS[c] "Distiller Extension"' \
+  2>/dev/null | grep -i jesjohannesen | cut -c1-150 | tail -6)
 if [ -z "$HITS" ]; then
-  bad "Safari has not touched this extension in the last 2 hours."
-  note "It has not loaded it, not run its background worker, and not rejected it —"
-  note "it simply is not switched on. While this is true, nothing in the extension's"
-  note "own code can be the cause of the button doing nothing."
+  warn "Safari has not touched this extension in the last 2 hours."
+  note "It has not loaded it, not run its background worker, and not rejected it."
+  note "While this is true, nothing in the extension's own code can be the cause."
 else
-  ok "Safari has touched it. Recent entries:"
-  echo "$HITS" | cut -c1-160 | sed 's/^/    /'
+  ok "Safari log entries:"
+  echo "$HITS" | sed 's/^/    /'
 fi
 
 echo
 echo "── 5. Known Safari rejections ──"
-SIGFAIL=$(log show --last 2h --info --debug --style compact \
-  --predicate 'process == "Safari" AND eventMessage CONTAINS[c] "code signing dictionary"' 2>/dev/null | grep -c jesjohannesen)
-if [ "${SIGFAIL:-0}" -gt 0 ]; then
-  bad "Safari logged \"Computing the code signing dictionary failed\" ($SIGFAIL times)."
-  note "This is Safari refusing the ad-hoc signature outright. It is THE reason the"
-  note "extension never appears or never runs. Allow Unsigned Extensions works around"
-  note "it per-session; signing with an Apple ID team fixes it for good."
+# A rejection logged before the currently-installed build is history, not a live
+# problem. Compare against the app's mtime so an old failure stops raising alarms.
+APP_EPOCH=$([ -n "$APP" ] && stat -f %m "$APP" 2>/dev/null || echo 0)
+LAST_SIGFAIL=$(log show --last 6h --info --debug --style compact \
+  --predicate 'process == "Safari" AND eventMessage CONTAINS[c] "code signing dictionary failed"' \
+  2>/dev/null | grep jesjohannesen | tail -1 | awk '{print $1" "$2}')
+if [ -n "$LAST_SIGFAIL" ]; then
+  FAIL_EPOCH=$(date -j -f "%Y-%m-%d %H:%M:%S" "${LAST_SIGFAIL%.*}" +%s 2>/dev/null || echo 0)
+  if [ "$FAIL_EPOCH" -gt "$APP_EPOCH" ]; then
+    bad "Safari rejected the signature at $LAST_SIGFAIL — after the current build."
+    note "\"Computing the code signing dictionary failed\" means Safari will not load it."
+    note "See section 3."
+  else
+    ok "Last signature rejection ($LAST_SIGFAIL) predates the installed build — historical."
+  fi
 else
-  ok "No code-signing rejection logged."
+  ok "No signature rejection logged."
 fi
 
-STALE=$(log show --last 2h --info --debug --style compact \
-  --predicate 'process == "Safari" AND eventMessage CONTAINS[c] "com.jesjohannesen.distiller/Distiller.app"' 2>/dev/null | grep -c Caches)
-if [ "${STALE:-0}" -gt 0 ]; then
-  bad "Safari is still referencing the old ~/Library/Caches app path ($STALE times)."
-  note "That app was purged by macOS. Quit Safari completely (⌘Q) and reopen it so it"
-  note "drops the stale reference and finds the app in /Applications."
+LAST_STALE=$(log show --last 6h --info --debug --style compact \
+  --predicate 'process == "Safari" AND eventMessage CONTAINS[c] "com.jesjohannesen.distiller/Distiller.app"' \
+  2>/dev/null | grep Caches | tail -1 | awk '{print $1" "$2}')
+if [ -n "$LAST_STALE" ]; then
+  STALE_EPOCH=$(date -j -f "%Y-%m-%d %H:%M:%S" "${LAST_STALE%.*}" +%s 2>/dev/null || echo 0)
+  if [ "$STALE_EPOCH" -gt "$APP_EPOCH" ]; then
+    bad "Safari is still resolving the app at the old ~/Library/Caches path."
+    note "That copy was purged by macOS. Quit Safari completely (⌘Q) and reopen it."
+  else
+    ok "Stale ~/Library/Caches references predate the installed build — historical."
+    note "Still quit and reopen Safari once so it picks up the app in /Applications."
+  fi
 fi
 
 echo

@@ -55,6 +55,37 @@ personal team), find your team id, then:
 DISTILLER_TEAM_ID=ABCDE12345 ./scripts/build-safari.sh --open
 ```
 
+### Finding your Apple team id
+
+Adding the Apple ID in Xcode ▸ Settings ▸ Accounts is enough — the team id is then on
+the machine, inside the development certificate Xcode created. Xcode's UI shows your
+email rather than the id, so read it from the certificate instead. The **OU** field is
+the team id:
+
+```bash
+security find-certificate -a -c "Apple Development" -p | openssl x509 -noout -subject
+```
+
+```
+subject=UID = 35RJ725DX5, CN = Apple Development: you@example.com (SJWNTMD5GQ),
+        OU = 42XPDG8BMT, O = Your Name, C = US
+                ^^^^^^^^^^ team id
+```
+
+Then build with it. `build-safari.sh` passes `-allowProvisioningUpdates`, so xcodebuild
+registers the app ids and mints the profile itself without opening Xcode:
+
+```bash
+DISTILLER_TEAM_ID=42XPDG8BMT ./scripts/build-safari.sh --open
+```
+
+Signed this way, Safari logs *"Computing the code signing dictionary succeeded"* and
+loads the extension normally — no Allow Unsigned Extensions, and it survives restarts.
+
+> `spctl` will still report the app as "rejected". That is Gatekeeper judging
+> *distribution*, and an Apple Development certificate is not a Developer ID. It has no
+> bearing on whether Safari loads the extension.
+
 ### Checking what's actually installed
 
 ```bash

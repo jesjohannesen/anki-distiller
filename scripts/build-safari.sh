@@ -90,8 +90,12 @@ echo "==> Building"
 # only load an ad-hoc signed extension while Develop ▸ Allow Unsigned Extensions is
 # on — see docs/INSTALL.md. Set DISTILLER_TEAM_ID to sign properly.
 SIGN_ARGS=(CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="")
+EXTRA_ARGS=()
 if [ -n "$TEAM_ID" ]; then
   SIGN_ARGS=(CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM="$TEAM_ID")
+  # Lets xcodebuild register the app ids and mint the provisioning profile itself,
+  # which the Xcode GUI would otherwise have to be opened to do.
+  EXTRA_ARGS=(-allowProvisioningUpdates)
 fi
 
 xcodebuild \
@@ -100,6 +104,7 @@ xcodebuild \
   -configuration Release \
   -derivedDataPath "$WORK/DerivedData" \
   "${SIGN_ARGS[@]}" \
+  "${EXTRA_ARGS[@]}" \
   build
 
 BUILT="$WORK/DerivedData/Build/Products/Release/$APP_NAME.app"
