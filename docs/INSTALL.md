@@ -16,14 +16,19 @@ cd anki-distiller
 ./scripts/build-safari.sh --open
 ```
 
-The script wraps `Extension/` in a Safari app extension, builds it, and (with
-`--open`) launches the resulting app once so Safari registers it. It prints where the
-`.app` ended up.
+The script wraps `Extension/` in a Safari app extension, builds it, **installs it to
+`/Applications/Distiller.app`**, and (with `--open`) launches it once so Safari
+registers the extension. It prints the install path and the version it installed.
 
-> The build happens in `~/Library/Caches/com.jesjohannesen.distiller`, not in the
-> repo. If the repo lives in iCloud Drive, every file carries a `com.apple.FinderInfo`
-> extended attribute and `codesign` refuses to sign the bundle. Building outside the
-> synced folder sidesteps it. Override with `DISTILLER_BUILD_DIR=/some/path`.
+> Two locations, and the distinction matters. The scratch build happens in
+> `~/Library/Developer/anki-distiller` — outside the repo, because a repo in iCloud
+> Drive carries `com.apple.FinderInfo` on every file and `codesign` refuses to sign
+> such a bundle. The finished app is then installed to `/Applications` (or
+> `~/Applications` if that isn't writable), because **Safari resolves the extension
+> from the app's path on every launch**. Anywhere macOS may reclaim — `~/Library/Caches`
+> above all — and the app silently disappears, taking the extension with it. Override
+> with `DISTILLER_BUILD_DIR` and `DISTILLER_INSTALL_DIR`; the script refuses to build
+> into `~/Library/Caches`.
 
 Then:
 
@@ -50,15 +55,18 @@ personal team), find your team id, then:
 DISTILLER_TEAM_ID=ABCDE12345 ./scripts/build-safari.sh --open
 ```
 
-### Keep the app somewhere permanent
-
-Safari registers the extension from wherever the `.app` sits. Copy it to
-`/Applications` and run it once from there, or Safari will lose the extension the next
-time the build cache is cleared:
+### Checking what's actually installed
 
 ```bash
-cp -R ~/Library/Caches/com.jesjohannesen.distiller/Distiller.app /Applications/
-open /Applications/Distiller.app
+pluginkit -m -A -vvv | grep -A3 Distiller
+```
+
+If that prints nothing, Safari has no extension to show — the app was moved or
+deleted. Re-run the build script. To confirm which version is installed:
+
+```bash
+plutil -extract version raw \
+  "/Applications/Distiller.app/Contents/PlugIns/Distiller Extension.appex/Contents/Resources/manifest.json"
 ```
 
 ---

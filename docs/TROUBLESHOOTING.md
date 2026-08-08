@@ -2,6 +2,15 @@
 
 ## The extension
 
+**It worked, then stopped — no panel, and the Develop menu shows no background
+content for it.**
+The app is gone. Safari resolves the extension from the app bundle's path every
+launch, so if the app was deleted or moved, the extension quietly stops existing.
+Check with `pluginkit -m -A -vvv | grep -A3 Distiller`; if that prints nothing,
+re-run `./scripts/build-safari.sh --open`. (Versions before 1.0.2 installed into
+`~/Library/Caches`, which macOS purges on its own schedule — that is exactly this
+failure. 1.0.2 installs to `/Applications` instead.)
+
 **Distiller isn't in Safari ▸ Settings ▸ Extensions.**
 The app has to be launched at least once from where it will live. Copy it to
 `/Applications` and open it. If it still doesn't appear, it's the ad-hoc signature:

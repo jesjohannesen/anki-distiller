@@ -1,28 +1,53 @@
 #!/usr/bin/env bash
 #
-# Wrap Extension/ in a Safari app extension, build it, and drop the .app in build/.
+# Wrap Extension/ in a Safari app extension, build it, and install the app.
 #
-#   ./scripts/build-safari.sh          generate + build
-#   ./scripts/build-safari.sh --open   …and open the app so Safari registers it
-#   ./scripts/build-safari.sh --xcode  generate only, then open the Xcode project
+#   ./scripts/build-safari.sh          build + install
+#   ./scripts/build-safari.sh --open   …and launch it so Safari registers the extension
+#   ./scripts/build-safari.sh --xcode  generate the Xcode project only, then open it
 #
-# Extension/ is the single source of truth. The Xcode project under build/ is
-# regenerated from it every run and is not tracked in git.
+# Extension/ is the single source of truth. The Xcode project is regenerated from it
+# on every run and is not tracked in git.
+#
+# Two locations matter here and they are not interchangeable:
+#
+#   WORK    scratch space for the generated project and DerivedData.
+#   INSTALL where the finished .app lives permanently. Safari resolves the extension
+#           from this path every launch, so it must be somewhere macOS will not
+#           reclaim. NEVER ~/Library/Caches — macOS purges it without warning, the
+#           app disappears, and Safari silently drops the extension.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# Build outside the repo on purpose. A repo living in iCloud Drive (or any file
-# provider) gets com.apple.FinderInfo stamped on every file, and codesign refuses
-# to sign a bundle that carries those. Override with DISTILLER_BUILD_DIR.
-BUILD="${DISTILLER_BUILD_DIR:-$HOME/Library/Caches/com.jesjohannesen.distiller}"
-PROJECT="$BUILD/Distiller/Distiller.xcodeproj"
+
+# Not the repo: a repo in iCloud Drive (or any file provider) gets com.apple.FinderInfo
+# stamped on every file, and codesign refuses to sign a bundle carrying those.
+# ~/Library/Developer is Xcode's own territory and is never purged.
+WORK="${DISTILLER_BUILD_DIR:-$HOME/Library/Developer/anki-distiller}"
+
 APP_NAME="Distiller"
 # The converter derives the container app's id as <prefix>.<AppName>, so the last
 # component here must match APP_NAME exactly or the embedded .appex id won't be a
 # prefix match and ValidateEmbeddedBinary fails.
 BUNDLE_ID="${DISTILLER_BUNDLE_ID:-com.jesjohannesen.Distiller}"
 TEAM_ID="${DISTILLER_TEAM_ID:-}"
+PROJECT="$WORK/$APP_NAME/$APP_NAME.xcodeproj"
+
+if [ -n "${DISTILLER_INSTALL_DIR:-}" ]; then
+  INSTALL_DIR="$DISTILLER_INSTALL_DIR"
+elif [ -w /Applications ]; then
+  INSTALL_DIR="/Applications"
+else
+  INSTALL_DIR="$HOME/Applications"
+fi
+APP="$INSTALL_DIR/$APP_NAME.app"
+
+case "$WORK" in
+  "$HOME/Library/Caches"*)
+    echo "Refusing to build in ~/Library/Caches — macOS purges it and Safari would lose the extension." >&2
+    exit 1 ;;
+esac
 
 OPEN_APP=false
 XCODE_ONLY=false
@@ -37,13 +62,13 @@ done
 command -v xcrun >/dev/null || { echo "Xcode command line tools are required." >&2; exit 1; }
 
 echo "==> Generating Safari app extension project"
-mkdir -p "$BUILD"
-rm -rf "$BUILD/Distiller"
+mkdir -p "$WORK"
+rm -rf "${WORK:?}/$APP_NAME"
 # codesign refuses to sign a bundle carrying extended attributes, and macOS stamps
 # com.apple.provenance on anything an app wrote. Strip before copying.
 xattr -cr "$ROOT/Extension" 2>/dev/null || true
 xcrun safari-web-extension-converter "$ROOT/Extension" \
-  --project-location "$BUILD" \
+  --project-location "$WORK" \
   --app-name "$APP_NAME" \
   --bundle-identifier "$BUNDLE_ID" \
   --macos-only \
@@ -53,7 +78,7 @@ xcrun safari-web-extension-converter "$ROOT/Extension" \
   --no-prompt \
   --force
 
-xattr -cr "$BUILD/Distiller" 2>/dev/null || true
+xattr -cr "$WORK/$APP_NAME" 2>/dev/null || true
 
 if [ "$XCODE_ONLY" = true ]; then
   open "$PROJECT"
@@ -61,9 +86,9 @@ if [ "$XCODE_ONLY" = true ]; then
 fi
 
 echo "==> Building"
-# With no Apple developer identity on the machine we ad-hoc sign ("-"). Safari
-# will only load an ad-hoc signed extension while Develop ▸ Allow Unsigned
-# Extensions is on — see docs/INSTALL.md. Set DISTILLER_TEAM_ID to sign properly.
+# With no Apple developer identity on the machine we ad-hoc sign ("-"). Safari will
+# only load an ad-hoc signed extension while Develop ▸ Allow Unsigned Extensions is
+# on — see docs/INSTALL.md. Set DISTILLER_TEAM_ID to sign properly.
 SIGN_ARGS=(CODE_SIGN_IDENTITY="-" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER="")
 if [ -n "$TEAM_ID" ]; then
   SIGN_ARGS=(CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM="$TEAM_ID")
@@ -73,23 +98,39 @@ xcodebuild \
   -project "$PROJECT" \
   -scheme "$APP_NAME" \
   -configuration Release \
-  -derivedDataPath "$BUILD/DerivedData" \
+  -derivedDataPath "$WORK/DerivedData" \
   "${SIGN_ARGS[@]}" \
   build
 
-APP_SRC="$BUILD/DerivedData/Build/Products/Release/$APP_NAME.app"
-rm -rf "$BUILD/$APP_NAME.app"
-cp -R "$APP_SRC" "$BUILD/$APP_NAME.app"
+BUILT="$WORK/DerivedData/Build/Products/Release/$APP_NAME.app"
+[ -d "$BUILT" ] || { echo "Build reported success but $BUILT is missing." >&2; exit 1; }
+
+echo "==> Installing to $INSTALL_DIR"
+mkdir -p "$INSTALL_DIR"
+rm -rf "$APP"
+# ditto, not cp: it preserves bundle metadata and the code signature intact.
+ditto "$BUILT" "$APP"
+
+# Verify what we just installed rather than trusting the copy.
+codesign --verify --deep --strict "$APP" 2>&1 || { echo "Signature verification failed on the installed app." >&2; exit 1; }
+INSTALLED_VERSION="$(/usr/bin/python3 -c "
+import json
+print(json.load(open('$APP/Contents/PlugIns/$APP_NAME Extension.appex/Contents/Resources/manifest.json'))['version'])
+")"
+
+# Make Launch Services (and therefore Safari) aware of it immediately.
+/System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister -f "$APP" 2>/dev/null || true
 
 echo
-echo "Built: $BUILD/$APP_NAME.app"
+echo "Installed: $APP  (extension v$INSTALLED_VERSION)"
 echo
 echo "Next:"
-echo "  1. Open the app once so Safari registers the extension."
+echo "  1. Open the app once — it registers the extension with Safari."
 echo "  2. Safari ▸ Settings ▸ Extensions ▸ tick Distiller."
-echo "  3. If it does not appear: Safari ▸ Settings ▸ Advanced ▸ 'Show features for"
-echo "     web developers', then Develop ▸ Allow Unsigned Extensions."
+echo "  3. Click the Distiller toolbar button and choose 'Always Allow on Every Website'."
+echo "  4. If it is not listed: Safari ▸ Settings ▸ Advanced ▸ 'Show features for web"
+echo "     developers', then Develop ▸ Allow Unsigned Extensions."
 
 if [ "$OPEN_APP" = true ]; then
-  open "$BUILD/$APP_NAME.app"
+  open "$APP"
 fi

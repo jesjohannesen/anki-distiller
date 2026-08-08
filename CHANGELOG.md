@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.2 — 2026-08-08
+
+The build script was installing the app somewhere macOS deletes.
+
+- `build-safari.sh` built into `~/Library/Caches/…` and left the finished `.app`
+  there. macOS purges that directory on its own schedule; when it did, the app
+  vanished, Safari lost the extension, and the toolbar button did nothing with no
+  background page left to inspect. The script now builds in
+  `~/Library/Developer/anki-distiller` and **installs to `/Applications`**, refuses
+  to build under `~/Library/Caches`, verifies the installed signature, registers the
+  app with Launch Services, and prints the installed version.
+- Removed the manual "copy it to /Applications yourself" step from the install doc;
+  the script does it.
+- Added `DISTILLER_INSTALL_DIR` for choosing where the app lands.
+
 ## 1.0.1 — 2026-08-08
 
 Fixes the toolbar button doing nothing in Safari.
