@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.0.6 — 2026-08-08
+
+Safari had the extension blocked outright, which masked everything else.
+
+- Safari resolves an extension through its containing app's Launch Services record.
+  Every rebuild did `rm -rf` + `ditto` on the installed app while Safari was running,
+  and each one left another record behind — nine of them accumulated, pointing at
+  purged caches, deleted build directories and Trashed copies. Safari resolved a dead
+  one, logged `Couldn't find LSApplicationRecord`, and then **disabled and blocked the
+  extension**. It stayed blocked regardless of what was fixed afterwards, which is why
+  the toolbar button did nothing even from a handler that runs before any fallible
+  code.
+- `build-safari.sh` now unregisters the build product and known stale copies,
+  registers exactly one record, and warns if others remain.
+- `diagnose.sh` gained a Launch Services section that counts competing records and
+  reports Safari's `LSApplicationRecord` failures.
+- Reverted the 1.0.5 background-page rewrite. It was a response to "Safari never
+  starts the service worker", an observation made while the extension was blocked and
+  therefore worth nothing; it was also the only change that ever produced "Failed to
+  load data for extension" in Safari's log. Still available behind
+  `DISTILLER_BACKGROUND_PAGE=1` if the service worker turns out to be a real problem.
+
+
 ## 1.0.5 — 2026-08-08
 
 Safari never started the background service worker, so the button was inert.

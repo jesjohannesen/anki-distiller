@@ -80,13 +80,18 @@ xcrun safari-web-extension-converter "$ROOT/Extension" \
 
 xattr -cr "$WORK/$APP_NAME" 2>/dev/null || true
 
-# Safari does not reliably start an MV3 service worker for a converted extension —
-# it registers none, so action.onClicked never fires and the toolbar button is inert.
-# Rewrite the *copied* manifest to use a non-persistent background page instead,
-# listing the libraries as scripts. Extension/manifest.json keeps `service_worker` so
-# the source stays loadable unpacked in Chrome; background.js handles both shapes.
-echo "==> Rewriting background to a non-persistent page (Safari)"
-/usr/bin/python3 - "$WORK/$APP_NAME/$APP_NAME Extension/Resources/manifest.json" <<'PY'
+# Optional: swap the MV3 service worker for a non-persistent background page.
+#
+# Off by default. It was introduced on the theory that Safari never starts the
+# service worker, but that observation was made while Safari had the extension
+# blocked outright (stale Launch Services records — see below), so it proved
+# nothing, and "Failed to load data for extension" appeared in Safari's log only
+# with this rewrite in place. background.js supports both shapes, so this is one
+# env var away if the service worker really does turn out to be the problem:
+#   DISTILLER_BACKGROUND_PAGE=1 ./scripts/build-safari.sh
+if [ -n "${DISTILLER_BACKGROUND_PAGE:-}" ]; then
+  echo "==> Rewriting background to a non-persistent page"
+  /usr/bin/python3 - "$WORK/$APP_NAME/$APP_NAME Extension/Resources/manifest.json" <<'PY'
 import json, sys, pathlib
 
 path = pathlib.Path(sys.argv[1])
@@ -101,11 +106,11 @@ manifest["background"] = {
         "lib/prompt.js",
         "background.js",
     ],
-    "persistent": False,
 }
 path.write_text(json.dumps(manifest, indent=2) + "\n")
 print(f"    background -> {json.dumps(manifest['background'])}")
 PY
+fi
 
 if [ "$XCODE_ONLY" = true ]; then
   open "$PROJECT"
@@ -150,11 +155,39 @@ import json
 print(json.load(open('$APP/Contents/PlugIns/$APP_NAME Extension.appex/Contents/Resources/manifest.json'))['version'])
 ")"
 
-# Make Launch Services (and therefore Safari) aware of it immediately.
-/System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister -f "$APP" 2>/dev/null || true
+# Launch Services hygiene. Safari resolves the extension through the containing app's
+# LS record; if it resolves to a copy that no longer exists it logs
+#   "Couldn't find LSApplicationRecord … Disabling and blocking extension"
+# and the extension stays blocked no matter what is fixed afterwards. Every rebuild
+# used to leave another record behind (the DerivedData product, the previous install,
+# anything dragged to the Trash), so purge them and register exactly one.
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister
+
+"$LSREGISTER" -u "$BUILT" 2>/dev/null || true
+for stale in \
+  "$HOME/Library/Caches/com.jesjohannesen.distiller/DerivedData/Build/Products/Release/$APP_NAME.app" \
+  "$ROOT/build/DerivedData/Build/Products/Release/$APP_NAME.app" \
+  "$HOME/.Trash/$APP_NAME.app"; do
+  [ "$stale" = "$APP" ] && continue
+  "$LSREGISTER" -u "$stale" 2>/dev/null || true
+done
+
+"$LSREGISTER" -f -R -trusted "$APP" 2>/dev/null || true
+
+DUPES=$("$LSREGISTER" -dump 2>/dev/null | grep -E "^\s*path:" | grep -c "/$APP_NAME.app (" || true)
+if [ "${DUPES:-1}" -gt 2 ]; then
+  warn_dupes=1
+fi
 
 echo
 echo "Installed: $APP  (extension v$INSTALLED_VERSION)"
+
+if [ -n "${warn_dupes:-}" ]; then
+  echo
+  echo "  ⚠  Launch Services still lists other $APP_NAME.app copies. Safari may resolve"
+  echo "     the extension to a dead one and block it. Inspect with:"
+  echo "       ./scripts/diagnose.sh"
+fi
 
 if [ -z "$TEAM_ID" ]; then
   cat <<'WARN'

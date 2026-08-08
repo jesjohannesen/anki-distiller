@@ -2,6 +2,20 @@
 
 ## The extension
 
+**The button does nothing at all — no panel, no badge, nothing in the log.**
+Safari has most likely blocked the extension. It resolves an extension through its
+containing app's Launch Services record, and a rebuild that replaces the app can leave
+records pointing at copies that no longer exist. Safari then logs
+
+```
+Couldn't find LSApplicationRecord for … → Disabling and blocking extension with identifier: …
+```
+
+and it stays blocked afterwards no matter what else you fix. `./scripts/diagnose.sh`
+section 6 counts the records; re-running `./scripts/build-safari.sh` purges the stale
+ones. Then quit Safari, reopen, and **re-enable Distiller** in Safari ▸ Settings ▸
+Extensions — a blocked extension does not un-block itself.
+
 **Start here: run the diagnostic.**
 ```bash
 ./scripts/diagnose.sh

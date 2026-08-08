@@ -146,6 +146,34 @@ if [ -n "$LAST_STALE" ]; then
 fi
 
 echo
+echo "── 6. Launch Services records ──"
+# Safari resolves the extension through the containing app's LS record. If that record
+# points at a copy that no longer exists it logs "Couldn't find LSApplicationRecord"
+# and then "Disabling and blocking extension" — and it stays blocked afterwards,
+# whatever else is fixed. Rebuilds and Trashed copies each leave a record behind.
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister
+RECORDS=$("$LSREGISTER" -dump 2>/dev/null | grep -E "^[[:space:]]*path:" | grep "/$APP_NAME.app (" | grep -v appex | sed 's/^[[:space:]]*path:[[:space:]]*//')
+COUNT=$(printf '%s\n' "$RECORDS" | grep -c . || true)
+if [ "${COUNT:-0}" -le 1 ]; then
+  ok "One app record: ${RECORDS:-none}"
+else
+  bad "$COUNT competing records for $APP_NAME.app — Safari may resolve a dead one:"
+  printf '%s\n' "$RECORDS" | sed 's/^/      /'
+  note "Purge the ones that are not the install, then re-register:"
+  note "  $LSREGISTER -u <stale path>"
+  note "  $LSREGISTER -f -R -trusted \"$APP\""
+  note "Re-running ./scripts/build-safari.sh does this for you."
+fi
+
+BLOCKED=$(/usr/bin/log show --last 1h --info --debug --style compact \
+  --predicate 'process == "Safari" AND eventMessage CONTAINS "LSApplicationRecord"' 2>/dev/null | grep -c . || true)
+if [ "${BLOCKED:-0}" -gt 0 ]; then
+  warn "Safari logged \"Couldn't find LSApplicationRecord\" $BLOCKED times in the last hour."
+  note "Each one is followed by Safari disabling and blocking an extension. If any were"
+  note "after the current install, re-enable Distiller in Safari ▸ Settings ▸ Extensions."
+fi
+
+echo
 echo "── What to do ──"
 echo "  Order matters: Allow Unsigned Extensions resets on every Safari launch, so"
 echo "  quit FIRST, then switch it on, then enable the extension."
