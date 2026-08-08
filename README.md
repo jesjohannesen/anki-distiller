@@ -45,6 +45,8 @@ cd anki-distiller
 ./scripts/build-safari.sh --open
 ```
 
+If the toolbar button ever seems dead, `./scripts/diagnose.sh` says why.
+
 Then Safari ▸ Settings ▸ Extensions ▸ enable **Distiller**, and paste an
 [OpenRouter key](https://openrouter.ai/keys) into its settings. Without an Apple
 developer identity you'll also need Develop ▸ Allow Unsigned Extensions — the install
@@ -72,7 +74,7 @@ Extension/            the web extension — the single source of truth
   options/            settings page
 docs/                 install, architecture, prompt design, costs, troubleshooting
 preview/              render the UI in a plain browser tab, no install needed
-scripts/              build-safari.sh, make-icons.py
+scripts/              build-safari.sh, diagnose.sh, make-icons.py
 ```
 
 `Extension/` is the only place code lives. `scripts/build-safari.sh` regenerates the

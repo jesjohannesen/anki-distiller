@@ -123,13 +123,32 @@ print(json.load(open('$APP/Contents/PlugIns/$APP_NAME Extension.appex/Contents/R
 
 echo
 echo "Installed: $APP  (extension v$INSTALLED_VERSION)"
+
+if [ -z "$TEAM_ID" ]; then
+  cat <<'WARN'
+
+  ⚠  Ad-hoc signed — no Apple developer identity on this Mac.
+
+     Safari logs "Computing the code signing dictionary failed" and refuses to load
+     the extension unless Develop ▸ Allow Unsigned Extensions is on, and that switch
+     resets every time Safari launches.
+
+     To be rid of it: Xcode ▸ Settings ▸ Accounts, add your Apple ID (a free personal
+     team works), then rebuild with
+         DISTILLER_TEAM_ID=<your team id> ./scripts/build-safari.sh --open
+
+     Run ./scripts/diagnose.sh any time the button seems dead.
+WARN
+fi
+
 echo
-echo "Next:"
+echo "Next (order matters — Allow Unsigned Extensions resets on each Safari launch):"
 echo "  1. Open the app once — it registers the extension with Safari."
-echo "  2. Safari ▸ Settings ▸ Extensions ▸ tick Distiller."
-echo "  3. Click the Distiller toolbar button and choose 'Always Allow on Every Website'."
-echo "  4. If it is not listed: Safari ▸ Settings ▸ Advanced ▸ 'Show features for web"
-echo "     developers', then Develop ▸ Allow Unsigned Extensions."
+echo "  2. Quit Safari completely (⌘Q) and reopen it."
+echo "  3. Safari ▸ Settings ▸ Advanced ▸ 'Show features for web developers',"
+echo "     then Develop ▸ Allow Unsigned Extensions."
+echo "  4. Safari ▸ Settings ▸ Extensions ▸ tick Distiller."
+echo "  5. Click the Distiller toolbar button ▸ 'Always Allow on Every Website'."
 
 if [ "$OPEN_APP" = true ]; then
   open "$APP"

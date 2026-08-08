@@ -2,6 +2,15 @@
 
 ## The extension
 
+**Start here: run the diagnostic.**
+```bash
+./scripts/diagnose.sh
+```
+It reports whether the app is installed somewhere durable, whether the system has
+registered the extension, whether Safari accepts the signature, and whether Safari has
+actually tried to load it. `--watch` streams Safari's log live so you can press the
+button and see whether anything happens at all.
+
 **It worked, then stopped — no panel, and the Develop menu shows no background
 content for it.**
 The app is gone. Safari resolves the extension from the app bundle's path every
@@ -11,13 +20,20 @@ re-run `./scripts/build-safari.sh --open`. (Versions before 1.0.2 installed into
 `~/Library/Caches`, which macOS purges on its own schedule — that is exactly this
 failure. 1.0.2 installs to `/Applications` instead.)
 
-**Distiller isn't in Safari ▸ Settings ▸ Extensions.**
-The app has to be launched at least once from where it will live. Copy it to
-`/Applications` and open it. If it still doesn't appear, it's the ad-hoc signature:
-Safari ▸ Settings ▸ Advanced ▸ Show features for web developers, then Develop ▸ Allow
-Unsigned Extensions. That switch resets on every Safari restart — see
-[INSTALL.md](INSTALL.md#if-distiller-doesnt-appear-in-the-list) for how to sign
-properly with a free Apple ID.
+**Distiller isn't in Safari ▸ Settings ▸ Extensions, or the button does nothing and
+the log shows "Computing the code signing dictionary failed".**
+Safari is refusing the ad-hoc signature. Because *Allow Unsigned Extensions* resets on
+every Safari launch, the order matters:
+
+1. Quit Safari completely (⌘Q) and reopen it.
+2. Safari ▸ Settings ▸ Advanced ▸ Show features for web developers.
+3. Develop ▸ Allow Unsigned Extensions.
+4. Safari ▸ Settings ▸ Extensions ▸ tick Distiller.
+
+Doing this after every restart gets old. Add an Apple ID in Xcode ▸ Settings ▸
+Accounts (a free personal team is enough) and rebuild with
+`DISTILLER_TEAM_ID=<team id> ./scripts/build-safari.sh --open`; a real team identifier
+makes Safari accept it permanently.
 
 **The button does nothing, and no panel appears.**
 Look at the toolbar button: a failed start puts a red **!** badge on it, and the

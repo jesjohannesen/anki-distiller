@@ -14,6 +14,14 @@ The build script was installing the app somewhere macOS deletes.
 - Removed the manual "copy it to /Applications yourself" step from the install doc;
   the script does it.
 - Added `DISTILLER_INSTALL_DIR` for choosing where the app lands.
+- New `scripts/diagnose.sh`: reports install path, system registration, signature
+  status, and whether Safari has actually tried to load the extension — including
+  the "Computing the code signing dictionary failed" rejection that Safari logs for
+  ad-hoc signed extensions. `--watch` streams Safari's log live while you press the
+  button.
+- The build script now warns loudly when it produces an ad-hoc signed app, and both
+  it and the docs give the enable steps in the order that actually works (quit Safari
+  first — Allow Unsigned Extensions resets on launch).
 
 ## 1.0.1 — 2026-08-08
 
