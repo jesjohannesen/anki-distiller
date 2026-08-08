@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Distiller settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main class="page">
+    <header class="masthead">
+      <div class="mark">D</div>
+      <div>
+        <h1>Distiller</h1>
+        <p class="sub">Turn the article you're reading into concentrated Anki cards.</p>
+      </div>
+    </header>
+
+    <!-- ── OpenRouter ─────────────────────────────────────────── -->
+    <section class="card">
+      <h2>OpenRouter</h2>
+      <p class="hint">
+        Distiller calls whichever model you pick through
+        <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">OpenRouter</a>.
+        The key is stored on this Mac only and is never sent anywhere except openrouter.ai.
+      </p>
+
+      <label class="field">
+        <span class="label">API key</span>
+        <span class="with-button">
+          <input id="apiKey" type="password" spellcheck="false" autocomplete="off" placeholder="sk-or-v1-…">
+          <button id="revealKey" class="btn ghost small" type="button">Show</button>
+        </span>
+      </label>
+
+      <div class="row">
+        <button id="testKey" class="btn ghost" type="button">Check key</button>
+        <span id="keyStatus" class="status"></span>
+      </div>
+
+      <label class="field">
+        <span class="label">Model</span>
+        <input id="modelInput" list="modelList" spellcheck="false" placeholder="anthropic/claude-sonnet-5">
+        <datalist id="modelList"></datalist>
+        <span class="hint" id="modelHint">Type to search all models on OpenRouter.</span>
+      </label>
+
+      <div class="chips" id="curatedChips"></div>
+    </section>
+
+    <!-- ── Cards ──────────────────────────────────────────────── -->
+    <section class="card">
+      <h2>Cards</h2>
+
+      <div class="grid2">
+        <label class="field">
+          <span class="label">How many cards</span>
+          <select id="targetCards">
+            <option value="0">Let the model decide</option>
+            <option value="4">About 4</option>
+            <option value="6">About 6</option>
+            <option value="8">About 8</option>
+            <option value="10">About 10</option>
+            <option value="12">About 12</option>
+            <option value="16">About 16</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="label">Card language</span>
+          <select id="language">
+            <option value="auto">Same as the article</option>
+            <option value="English">English</option>
+            <option value="Norwegian">Norwegian</option>
+            <option value="German">German</option>
+            <option value="French">French</option>
+            <option value="Spanish">Spanish</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="field">
+        <span class="label">Extra tags</span>
+        <input id="extraTags" type="text" spellcheck="false" placeholder="reading, 2026">
+        <span class="hint">Comma separated. Added to every card alongside <code>distiller</code>, the site domain, and the model's own topic tag.</span>
+      </label>
+
+      <label class="check">
+        <input id="appendSource" type="checkbox">
+        <span>Put a link back to the source at the bottom of each card</span>
+      </label>
+    </section>
+
+    <!-- ── Anki ───────────────────────────────────────────────── -->
+    <section class="card">
+      <h2>Anki</h2>
+      <p class="hint">
+        Cards are pushed straight into Anki desktop through the
+        <a href="https://ankiweb.net/shared/info/2055492159" target="_blank" rel="noopener">AnkiConnect</a>
+        add-on (code <code>2055492159</code>). Anki must be open. If it isn't, Distiller falls back to
+        a TSV you can import by hand.
+      </p>
+
+      <div class="row">
+        <button id="ankiConnect" class="btn" type="button">Connect to Anki</button>
+        <span id="ankiStatus" class="status"></span>
+      </div>
+
+      <div class="grid2">
+        <label class="field">
+          <span class="label">Default deck</span>
+          <input id="deck" list="deckList" type="text" spellcheck="false" placeholder="Default">
+          <datalist id="deckList"></datalist>
+        </label>
+
+        <label class="field">
+          <span class="label">Note type</span>
+          <input id="noteType" list="noteTypeList" type="text" spellcheck="false" placeholder="Basic">
+          <datalist id="noteTypeList"></datalist>
+        </label>
+
+        <label class="field">
+          <span class="label">Question field</span>
+          <input id="frontField" list="fieldList" type="text" spellcheck="false" placeholder="Front">
+          <datalist id="fieldList"></datalist>
+        </label>
+
+        <label class="field">
+          <span class="label">Answer field</span>
+          <input id="backField" list="fieldList" type="text" spellcheck="false" placeholder="Back">
+        </label>
+      </div>
+
+      <label class="check">
+        <input id="allowDuplicates" type="checkbox">
+        <span>Allow duplicates (off means Anki silently skips cards whose question already exists in the deck)</span>
+      </label>
+    </section>
+
+    <!-- ── Spending (hidden until switched on) ────────────────── -->
+    <section class="card hidden" id="costCard">
+      <h2>Spending</h2>
+      <div class="totals" id="costTotals"></div>
+      <h3 class="subhead">By model</h3>
+      <div class="table-wrap"><table id="costByModel"></table></div>
+      <h3 class="subhead">Recent runs</h3>
+      <div class="table-wrap"><table id="costRuns"></table></div>
+      <div class="row">
+        <button id="exportCosts" class="btn ghost" type="button">Export CSV</button>
+        <button id="clearCosts" class="btn ghost danger" type="button">Clear history</button>
+        <span id="costNote" class="status"></span>
+      </div>
+    </section>
+
+    <!-- ── Advanced ───────────────────────────────────────────── -->
+    <details class="card details" id="advanced">
+      <summary><h2>Advanced</h2><span class="hint">Cost tracking, sampling, custom prompt</span></summary>
+
+      <div class="details-body">
+        <label class="check">
+          <input id="showCosts" type="checkbox">
+          <span><strong>Track and show costs.</strong> Adds a spending panel here and a per-run price under the cards.
+            Distiller records every run locally either way, so switching this on shows the history you already have.</span>
+        </label>
+
+        <div class="grid2">
+          <label class="field">
+            <span class="label">Temperature</span>
+            <input id="temperature" type="number" min="0" max="2" step="0.1">
+            <span class="hint">Lower is more literal. 0.3 is a good default for factual cards.</span>
+          </label>
+
+          <label class="field">
+            <span class="label">Max output tokens</span>
+            <input id="maxOutputTokens" type="number" min="500" max="32000" step="500">
+          </label>
+
+          <label class="field">
+            <span class="label">Max article characters</span>
+            <input id="maxArticleChars" type="number" min="2000" max="400000" step="1000">
+            <span class="hint">Longer articles are truncated here. ~4 characters ≈ 1 token.</span>
+          </label>
+
+          <label class="field">
+            <span class="label">AnkiConnect address</span>
+            <input id="ankiUrl" type="text" spellcheck="false" placeholder="http://127.0.0.1:8765">
+          </label>
+        </div>
+
+        <label class="field">
+          <span class="label">Custom system prompt</span>
+          <textarea id="systemPromptOverride" rows="8" spellcheck="false" placeholder="Leave empty to use the built-in prompt."></textarea>
+          <span class="hint">
+            Overrides the built-in card-writing rules entirely. It must still ask for
+            <code>{"summary": "...", "cards": [{"front", "back", "tag"}]}</code> as JSON.
+            <button id="loadDefaultPrompt" class="linkish" type="button">Load the built-in prompt to edit</button>
+          </span>
+        </label>
+      </div>
+    </details>
+
+    <footer class="foot">
+      <span id="saveState" class="status"></span>
+      <span class="spacer"></span>
+      <a href="https://github.com/jesjohannesen/anki-distiller" target="_blank" rel="noopener">Documentation</a>
+    </footer>
+  </main>
+
+  <script src="../lib/shim.js"></script>
+  <script src="../lib/settings.js"></script>
+  <script src="../lib/ledger.js"></script>
+  <script src="../lib/prompt.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

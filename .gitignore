@@ -1,0 +1,9 @@
+# Build output — scripts/build-safari.sh generates the Xcode project outside the
+# repo by default; this covers DISTILLER_BUILD_DIR=./build too.
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+.DS_Store
+*.swp
