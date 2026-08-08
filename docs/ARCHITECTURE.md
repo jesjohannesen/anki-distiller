@@ -35,7 +35,7 @@ Why this split:
 
 | File | Responsibility |
 | --- | --- |
-| `manifest.json` | MV3. `activeTab` + `scripting` (inject on click, not on every page), `storage`. Host permissions for openrouter.ai and localhost:8765 only. |
+| `manifest.json` | MV3. `scripting` + `storage`, and broad `host_permissions` because Safari offers no per-site grant for `activeTab`-only extensions. No content script is declared: injection happens solely from the toolbar click. |
 | `background.js` | Toolbar click → inject → open panel. Message router. `distil()` orchestration. |
 | `lib/shim.js` | `browser` if present, else `chrome`. Safari has both; Chrome has one. |
 | `lib/settings.js` | `DEFAULTS`, `getSettings`, `setSettings`. All keys documented in one object. |

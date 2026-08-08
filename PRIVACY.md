@@ -13,8 +13,25 @@ network destination other than the two you configure yourself.
 | `openrouter.ai` | The public model catalogue (no key, no page data) | Model names and pricing, cached 24 h |
 | `127.0.0.1:8765` | The cards you approved | To add them to Anki on this machine |
 
-That's the complete list. `manifest.json` grants host permissions for exactly those
-two origins, so the extension is technically incapable of contacting anywhere else.
+That's the complete list.
+
+**About the "all websites" permission.** Safari shows Distiller as able to read every
+site you visit, and the manifest does declare `http://*/*` and `https://*/*`. That
+declaration is a Safari requirement, not a description of behaviour: Safari has no UI
+for granting a per-site permission to an extension that relies on `activeTab`, so
+without a broad declaration there is no way to let Distiller read the article you are
+on. What the extension actually does is unchanged and is visible in the source:
+
+- **No content script is declared.** Nothing is injected on page load, ever. Injection
+  happens only inside `openPanel()`, which only runs from `action.onClicked` — that is,
+  from you pressing the button. See [`background.js`](Extension/background.js).
+- Nothing is read from tabs you have not pressed the button on, and nothing is read in
+  the background.
+- The only outbound hosts the code ever contacts are the two in the table above.
+
+If you would rather constrain it rather than trust it, Safari ▸ Settings ▸ Websites ▸
+Distiller lets you set "All other websites" to **Ask** instead of **Allow**, and
+approve each site as you go.
 
 OpenRouter forwards your text to the model provider you selected. Their retention and
 training policies are theirs, not ours — check them at

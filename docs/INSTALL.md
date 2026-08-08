@@ -33,10 +33,14 @@ registers the extension. It prints the install path and the version it installed
 Then:
 
 1. **Safari ▸ Settings ▸ Extensions** and tick **Distiller**.
-2. Click **Edit Website Settings…** (or the "Always Allow on Every Website" prompt the
-   first time you press the button) and grant access to the sites you read on.
-   Distiller only reads a page when you press its button, but Safari's permission
-   model still asks up front.
+2. **Safari ▸ Settings ▸ Websites**, scroll the left column to **Extensions** at the
+   bottom, select **Distiller**, and set **All other websites** to **Allow**.
+
+Step 2 is not optional and is easy to miss. Safari will not inject into a page the
+extension has no access to, and unlike Chrome it provides no per-click `activeTab`
+grant — if this list contains only `openrouter.ai`, the button will do nothing on
+every article you read. Setting it to **Ask** instead works too; you then approve each
+site the first time.
 
 ### If Distiller doesn't appear in the list
 

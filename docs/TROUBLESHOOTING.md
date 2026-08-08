@@ -35,6 +35,14 @@ Accounts (a free personal team is enough) and rebuild with
 `DISTILLER_TEAM_ID=<team id> ./scripts/build-safari.sh --open`; a real team identifier
 makes Safari accept it permanently.
 
+**The button does nothing, and Safari ▸ Settings ▸ Websites ▸ Distiller lists only
+`openrouter.ai`.**
+Safari has not granted access to the sites you read. Set **All other websites** to
+**Allow** (or **Ask**) in that pane. Safari has no per-click `activeTab` grant, so
+without this the extension cannot touch any article page. Fixed by default in 1.0.3,
+which declares broad host permissions so the control exists at all — before that, the
+pane offered nothing to switch on.
+
 **The button does nothing, and no panel appears.**
 Look at the toolbar button: a failed start puts a red **!** badge on it, and the
 reason is in its tooltip (hover for a second). Almost always this is site access —

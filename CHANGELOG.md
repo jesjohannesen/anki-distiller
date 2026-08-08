@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.3 — 2026-08-08
+
+Safari could never grant access to the pages being read.
+
+- `host_permissions` declared only openrouter.ai and localhost, with `activeTab`
+  meant to cover the article page. Chrome grants `activeTab` on a toolbar click;
+  Safari does not expose it as a website permission at all, so Safari ▸ Settings ▸
+  Websites ▸ Distiller listed only `openrouter.ai` and there was no control for
+  anything else. `scripting.executeScript` therefore had no access to any article
+  page and the button did nothing. Declare `http://*/*` and `https://*/*` so the
+  "All other websites" control exists.
+- Behaviour is unchanged: no content script is declared and injection still happens
+  only from the toolbar click. PRIVACY.md now explains why the declared permission is
+  broader than what the code does.
+
 ## 1.0.2 — 2026-08-08
 
 The build script was installing the app somewhere macOS deletes.

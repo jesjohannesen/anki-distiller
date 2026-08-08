@@ -105,7 +105,12 @@ Architecture and the message protocol between the panel and the worker:
 Article text goes to exactly one place: the OpenRouter model you chose. The API key
 never leaves your Mac except in the `Authorization` header to openrouter.ai, and it is
 never handed to a content script. Cards go to Anki on `127.0.0.1`. There is no
-telemetry and no server of ours. [PRIVACY.md](PRIVACY.md) has the details.
+telemetry and no server of ours.
+
+Safari lists the extension as able to read every site. That is a declaration Safari
+requires — it has no per-site grant for `activeTab` extensions — not what the code
+does: no content script is declared, and injection happens only when you press the
+button. [PRIVACY.md](PRIVACY.md) has the details.
 
 ## Chrome and Firefox
 

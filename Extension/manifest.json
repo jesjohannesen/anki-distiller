@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Distiller",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Distil the article you're reading into concentrated Anki flashcards, using any model on OpenRouter.",
   "icons": {
     "48": "icons/icon-48.png",
@@ -34,9 +34,8 @@
     "storage"
   ],
   "host_permissions": [
-    "https://openrouter.ai/*",
-    "http://127.0.0.1:8765/*",
-    "http://localhost:8765/*"
+    "http://*/*",
+    "https://*/*"
   ],
   "web_accessible_resources": [
     {
