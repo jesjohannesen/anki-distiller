@@ -16,27 +16,61 @@ importScripts(
 
 const INJECT_FILES = ['content/extract.js', 'content/panel.js'];
 
+/* Turn an injection failure into something the user can act on: a badge on the
+   toolbar button and the reason in its tooltip. A silent no-op is the one outcome
+   that leaves nobody anything to debug. */
+async function flagProblem(tabId, message) {
+  console.error('[Distiller]', message);
+  try {
+    await api.action.setBadgeText({ text: '!', tabId });
+    await api.action.setBadgeBackgroundColor({ color: '#c0342b', tabId });
+    await api.action.setTitle({ tabId, title: `Distiller — ${message}` });
+  } catch { /* badge APIs are best-effort */ }
+}
+
+async function clearProblem(tabId) {
+  try {
+    await api.action.setBadgeText({ text: '', tabId });
+    await api.action.setTitle({ tabId, title: 'Distil this article into Anki cards' });
+  } catch { /* ignore */ }
+}
+
+function explainInjectionFailure(error, tab) {
+  const msg = String(error?.message || error);
+  if (/permission|not allowed|cannot access|denied|blocked/i.test(msg)) {
+    return 'Safari has not granted access to this site. Click the Distiller button and choose "Always Allow on Every Website", or set it in Safari ▸ Settings ▸ Extensions ▸ Distiller.';
+  }
+  // Injection genuinely cannot work on Safari's own pages or the Extensions gallery.
+  const url = tab?.url || '';
+  if (url && !/^https?:/i.test(url)) return 'This kind of page cannot be read by extensions. Open an article first.';
+  return `Could not start on this page: ${msg}`;
+}
+
 async function openPanel(tab) {
   if (!tab?.id) return;
-  const url = tab.url || '';
-  if (!/^https?:/i.test(url)) {
-    // about:, file:, safari-extension: … nothing to distil and injection would fail.
-    return;
-  }
 
+  // Note: we deliberately do NOT gate on tab.url. Safari withholds it unless the
+  // extension holds the "tabs" permission, so checking it here silently refused
+  // every page. Try the injection and let the failure explain itself instead.
   try {
     await api.tabs.sendMessage(tab.id, { type: 'panel:open' });
+    await clearProblem(tab.id);
     return; // already injected
   } catch {
     // not injected yet — fall through
   }
 
-  await api.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_FILES });
-  await api.tabs.sendMessage(tab.id, { type: 'panel:open' });
+  try {
+    await api.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_FILES });
+    await api.tabs.sendMessage(tab.id, { type: 'panel:open' });
+    await clearProblem(tab.id);
+  } catch (e) {
+    await flagProblem(tab.id, explainInjectionFailure(e, tab));
+  }
 }
 
 api.action.onClicked.addListener((tab) => {
-  openPanel(tab).catch((e) => console.error('[Distiller] could not open panel:', e));
+  openPanel(tab).catch((e) => flagProblem(tab?.id, `Unexpected error: ${e?.message || e}`));
 });
 
 /* ---------- distillation ---------- */

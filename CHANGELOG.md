@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.1 — 2026-08-08
+
+Fixes the toolbar button doing nothing in Safari.
+
+- `openPanel` no longer gates on `tab.url`. Safari withholds it unless the extension
+  holds the `tabs` permission, so the check saw an empty string and refused to inject
+  on every page — silently, with nothing logged.
+- A failed start is now visible: a red `!` badge on the toolbar button and the reason
+  in its tooltip, including the exact fix for the common case (site access not
+  granted).
+
 ## 1.0.0 — 2026-08-08
 
 First release.

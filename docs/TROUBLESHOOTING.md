@@ -10,10 +10,18 @@ Unsigned Extensions. That switch resets on every Safari restart — see
 [INSTALL.md](INSTALL.md#if-distiller-doesnt-appear-in-the-list) for how to sign
 properly with a free Apple ID.
 
-**The button does nothing.**
-Distiller only injects into `http`/`https` pages, so it is a no-op on `about:blank`,
-PDFs and Safari's own pages. Otherwise it's the site permission: Safari ▸ Settings ▸
-Extensions ▸ Distiller ▸ Edit Website Settings, and allow the site.
+**The button does nothing, and no panel appears.**
+Look at the toolbar button: a failed start puts a red **!** badge on it, and the
+reason is in its tooltip (hover for a second). Almost always this is site access —
+click the button and choose **Always Allow on Every Website**, or set it in Safari ▸
+Settings ▸ Extensions ▸ Distiller ▸ Edit Website Settings.
+
+If there is no badge either, the background worker isn't running the click handler.
+Open Safari ▸ Develop ▸ **Web Extension Background Content** ▸ Distiller and look at
+the console; anything thrown while the worker loads shows up there.
+
+Extensions genuinely cannot read Safari's own pages, the Extensions gallery, or a
+`file://` PDF. On those the badge says so.
 
 **"Distiller lost its connection to Safari."**
 The service worker was evicted while the panel was open, usually after a rebuild.
