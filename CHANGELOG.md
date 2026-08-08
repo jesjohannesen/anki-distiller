@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.0.11 — 2026-08-08
+
+The click arrived and was thrown away one line later.
+
+- `openPanel` probed with `tabs.sendMessage` first and treated a rejection as
+  "nothing injected yet". Chrome rejects that call when no content script is
+  listening; **Safari resolves it**. So the probe always looked like success,
+  `openPanel` returned "already injected", and nothing was ever injected on any
+  page. The background console showed the click arriving and then silence.
+- Inject unconditionally instead, then message. Both content scripts already guard
+  against running twice, and `panel.js` no longer opens itself on a repeat injection
+  — the `panel:open` message drives that, so a second click still toggles the panel
+  shut.
+- The content script now returns a positive `{ok: true}` acknowledgement, and a
+  missing ack is treated as failure. Silence cannot be read as success on a platform
+  that resolves messages into the void.
+- The panel reveals itself via `requestAnimationFrame` with a timer fallback; rAF
+  does not fire in a backgrounded tab, which would mount the panel at opacity 0.
+
+
 ## 1.0.8 — 2026-08-08
 
 Safari never loads the MV3 service worker, so the toolbar click went nowhere.

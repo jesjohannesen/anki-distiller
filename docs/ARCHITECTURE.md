@@ -70,9 +70,13 @@ rejections, so a handler just throws.
 
 ## The distil path
 
-1. `action.onClicked` → `openPanel(tab)`. It tries `sendMessage` first; if that throws,
-   nothing is injected yet, so it injects `extract.js` + `panel.js` and sends again.
-   Pressing the button while the panel is open closes it.
+1. `action.onClicked` → `openPanel(tab)`. It injects `extract.js` + `panel.js`
+   unconditionally, then sends `panel:open` and requires an `{ok: true}` reply.
+   Injecting unconditionally is deliberate: `tabs.sendMessage` cannot be used to
+   detect whether a content script is present, because Safari resolves it even when
+   nothing is listening, while Chrome rejects. Both content scripts guard against
+   running twice, and `panel.js` does not open itself on a repeat injection — the
+   message drives that, so pressing the button while the panel is open closes it.
 2. The panel calls `window.__distillerExtract()` in the page and renders the setup view
    with the word count and a token estimate.
 3. **Distil** sends the article to the worker, which builds the prompt

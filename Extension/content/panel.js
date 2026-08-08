@@ -8,10 +8,10 @@
   const api = (typeof browser !== 'undefined' && browser.runtime) ? browser : chrome;
   const HOST_ID = 'distiller-panel-host';
 
-  if (window.__distillerPanel) {
-    window.__distillerPanel.open();
-    return;
-  }
+  /* Already injected. Do NOT open here: the background worker injects on every click
+     and then sends `panel:open`, which the listener registered below already handles.
+     Opening here as well would open the panel and immediately toggle it shut. */
+  if (window.__distillerPanel) return;
 
   /* ---------- tiny DOM helper (no innerHTML for model or page text) ---------- */
 
@@ -130,7 +130,13 @@
     root.append(wrap);
 
     document.addEventListener('keydown', onKeydown, true);
-    requestAnimationFrame(() => wrap.classList.add('in'));
+
+    /* Reveal on the next frame so the entry transition runs. requestAnimationFrame
+       does not fire in a backgrounded tab, which would leave the panel mounted at
+       opacity 0 — so back it with a timer. Both paths are idempotent. */
+    const reveal = () => wrap?.classList.add('in');
+    requestAnimationFrame(reveal);
+    setTimeout(reveal, 60);
   }
 
   function onKeydown(e) {
@@ -584,11 +590,15 @@
 
   window.__distillerPanel = { open, mounted: false };
 
-  api.runtime.onMessage.addListener((msg) => {
-    if (msg?.type !== 'panel:open') return;
+  api.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg?.type !== 'panel:open') return false;
     // Pressing the toolbar button again while the panel is up closes it.
     if (wrap && wrap.classList.contains('in')) close();
     else open();
+    // The worker needs a positive acknowledgement: Safari resolves sendMessage even
+    // when nothing is listening, so silence there is indistinguishable from success.
+    sendResponse({ ok: true });
+    return false;
   });
 
   /* No self-invocation here: the background worker always sends `panel:open`

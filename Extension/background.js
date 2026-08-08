@@ -84,25 +84,34 @@ function explainInjectionFailure(error, tab) {
 async function openPanel(tab) {
   if (!tab?.id) return;
 
-  // Note: we deliberately do NOT gate on tab.url. Safari withholds it unless the
-  // extension holds the "tabs" permission, so checking it here silently refused
-  // every page. Try the injection and let the failure explain itself instead.
-  try {
-    await ext.tabs.sendMessage(tab.id, { type: 'panel:open' });
-    await clearProblem(tab.id);
-    return; // already injected
-  } catch {
-    // not injected yet — fall through
-  }
+  /* Always inject, then message.
 
+     The previous shape sent `panel:open` first and treated a rejection as "nothing
+     injected yet". That is Chrome's behaviour — it rejects with "Could not establish
+     connection. Receiving end does not exist." Safari *resolves* the call instead, so
+     the probe always looked like success, openPanel returned "already injected", and
+     nothing was ever injected on any page. The click arrived and died right here.
+
+     Injecting unconditionally is safe: both content scripts guard against running
+     twice, and panel.js deliberately does not open itself on a repeat injection —
+     the `panel:open` message below drives that, so a second click toggles the panel
+     shut rather than reopening it.
+
+     We also do NOT gate on tab.url: Safari withholds it without the "tabs"
+     permission, and gating on it silently refused every page. */
   try {
     console.log('[Distiller] injecting panel into tab', tab.id);
     await ext.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_FILES });
-    await ext.tabs.sendMessage(tab.id, { type: 'panel:open' });
-    console.log('[Distiller] panel opened');
+    const ack = await ext.tabs.sendMessage(tab.id, { type: 'panel:open' });
+    console.log('[Distiller] panel:open ack =', ack);
+    if (!ack?.ok) {
+      // Safari resolves with undefined when nothing received the message, so an
+      // absent ack is the only way to know the panel never got the message.
+      throw new Error('The page did not acknowledge the panel. The content script may have been blocked from running.');
+    }
     await clearProblem(tab.id);
   } catch (e) {
-    console.error('[Distiller] injection failed:', e);
+    console.error('[Distiller] could not open the panel:', e);
     const reason = explainInjectionFailure(e, tab);
     await flagProblem(tab.id, reason);
     await reportFailurePage(reason);
