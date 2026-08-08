@@ -37,6 +37,16 @@ if (typeof getSettings !== 'function') {
    `api` because shim.js declares `var api` into this same global scope. */
 const ext = globalThis.api ?? globalThis.browser ?? globalThis.chrome;
 
+/* Announce startup. Without this, an empty background console is ambiguous — it
+   could mean "running quietly" or "you are not looking at our console at all", and
+   those need very different fixes. */
+console.log(
+  `[Distiller] background ready — v${ext?.runtime?.getManifest?.().version ?? '?'},`,
+  `shape: ${typeof importScripts === 'function' ? 'service worker' : 'page'},`,
+  `libs: ${BOOT_ERROR ? `FAILED (${BOOT_ERROR.message})` : 'loaded'},`,
+  `action API: ${ext?.action ? 'present' : 'MISSING'}`,
+);
+
 /* ---------- toolbar button ---------- */
 
 const INJECT_FILES = ['content/extract.js', 'content/panel.js'];
@@ -86,10 +96,13 @@ async function openPanel(tab) {
   }
 
   try {
+    console.log('[Distiller] injecting panel into tab', tab.id);
     await ext.scripting.executeScript({ target: { tabId: tab.id }, files: INJECT_FILES });
     await ext.tabs.sendMessage(tab.id, { type: 'panel:open' });
+    console.log('[Distiller] panel opened');
     await clearProblem(tab.id);
   } catch (e) {
+    console.error('[Distiller] injection failed:', e);
     const reason = explainInjectionFailure(e, tab);
     await flagProblem(tab.id, reason);
     await reportFailurePage(reason);
@@ -114,6 +127,8 @@ async function reportFailurePage(reason) {
 }
 
 ext.action.onClicked.addListener((tab) => {
+  console.log('[Distiller] toolbar click received — tab', tab?.id, tab?.url ?? '(url withheld)');
+
   /* Record the press before attempting anything that can fail. Storage is the probe
      of record here, not the badge: it is readable afterwards from the settings page,
      so "did the click handler run at all?" stops being a question answered by
