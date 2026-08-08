@@ -80,17 +80,18 @@ xcrun safari-web-extension-converter "$ROOT/Extension" \
 
 xattr -cr "$WORK/$APP_NAME" 2>/dev/null || true
 
-# Optional: swap the MV3 service worker for a non-persistent background page.
+# Swap the MV3 service worker for a background page. On by default for Safari.
 #
-# Off by default. It was introduced on the theory that Safari never starts the
-# service worker, but that observation was made while Safari had the extension
-# blocked outright (stale Launch Services records — see below), so it proved
-# nothing, and "Failed to load data for extension" appeared in Safari's log only
-# with this rewrite in place. background.js supports both shapes, so this is one
-# env var away if the service worker really does turn out to be the problem:
-#   DISTILLER_BACKGROUND_PAGE=1 ./scripts/build-safari.sh
-if [ -n "${DISTILLER_BACKGROUND_PAGE:-}" ]; then
-  echo "==> Rewriting background to a non-persistent page"
+# Safari lists the extension under Develop ▸ Web Extension Background Content but
+# reports it as "not loaded", and never starts it on a toolbar click — so
+# action.onClicked is never delivered and the button does nothing. A background page
+# is loaded by Safari directly and does not depend on event-driven startup.
+#
+# Extension/manifest.json keeps `service_worker`, which is what Chrome requires, and
+# background.js works under both shapes. Opt out with:
+#   DISTILLER_SERVICE_WORKER=1 ./scripts/build-safari.sh
+if [ -z "${DISTILLER_SERVICE_WORKER:-}" ]; then
+  echo "==> Rewriting background to a page (Safari does not start the service worker)"
   /usr/bin/python3 - "$WORK/$APP_NAME/$APP_NAME Extension/Resources/manifest.json" <<'PY'
 import json, sys, pathlib
 

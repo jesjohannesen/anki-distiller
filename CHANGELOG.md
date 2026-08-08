@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.8 — 2026-08-08
+
+Safari never loads the MV3 service worker, so the toolbar click went nowhere.
+
+- Develop ▸ Web Extension Background Content lists Distiller as **"ikke innlastet"**
+  (not loaded), and pressing the toolbar button does not start it. With no background
+  running there is no `action.onClicked` listener, which is why the button did nothing
+  regardless of signing, Launch Services or host permissions — all of which were
+  correct by this point.
+- Safari builds now use a **background page** by default (`background.scripts`).
+  `Extension/manifest.json` keeps `service_worker` for Chrome, `background.js` runs
+  under both, and `DISTILLER_SERVICE_WORKER=1` restores the old behaviour.
+- This was tried in 1.0.5 and reverted, because "Failed to load data for extension"
+  appeared alongside it. That turned out to be the stale Launch Services records
+  landing in the same second (app mtime 16:11:18, failure 16:11:18.584), not the
+  manifest. With those cleaned up, Safari accepts this manifest and logs no failure.
+
+
 ## 1.0.6 — 2026-08-08
 
 Safari had the extension blocked outright, which masked everything else.

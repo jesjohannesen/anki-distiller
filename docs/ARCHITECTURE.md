@@ -116,10 +116,14 @@ and Firefox want. Safari gets something different: `scripts/build-safari.sh` rew
 the manifest *in the generated Xcode project* to a non-persistent background page
 listing `lib/*.js` and `background.js` as `scripts`.
 
-This is not a preference. Safari registered no service worker for the converted
-extension — the system log showed none, and a click handler installed before any
-fallible code never ran — so `action.onClicked` was never wired up and the toolbar
-button did nothing on every page, whatever the permissions said.
+This is not a preference. Safari lists the extension under Develop ▸ Web Extension
+Background Content and reports it as **"not loaded"**, and a toolbar click does not
+start it — so `action.onClicked` is never delivered and the button does nothing on
+every page, whatever the signing and permissions say. A background page is loaded by
+Safari directly rather than started on demand by an event.
+
+Opt out with `DISTILLER_SERVICE_WORKER=1 ./scripts/build-safari.sh` if a future Safari
+fixes this.
 
 `background.js` runs under both. It calls `importScripts` only when the libraries are
 not already defined, so the service-worker shape imports them and the background-page
