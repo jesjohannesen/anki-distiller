@@ -100,6 +100,10 @@ then Safari ▸ Develop ▸ Web Extension Background Pages to reload.
 Architecture and the message protocol between the panel and the worker:
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+If you are porting a web extension to Safari, [docs/SAFARI-NOTES.md](docs/SAFARI-NOTES.md)
+lists the five platform differences that broke this one — every last one of them
+presenting as "the toolbar button does nothing, silently".
+
 ## Privacy
 
 Article text goes to exactly one place: the OpenRouter model you chose. The API key
