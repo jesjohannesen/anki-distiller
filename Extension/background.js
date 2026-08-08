@@ -90,28 +90,57 @@ async function openPanel(tab) {
     await ext.tabs.sendMessage(tab.id, { type: 'panel:open' });
     await clearProblem(tab.id);
   } catch (e) {
-    await flagProblem(tab.id, explainInjectionFailure(e, tab));
+    const reason = explainInjectionFailure(e, tab);
+    await flagProblem(tab.id, reason);
+    await reportFailurePage(reason);
   }
 }
 
+/* A badge is not a reliable way to tell the user anything: whether Safari renders
+   badge text on an extension button is not something we control, so a silent no-op
+   there looks identical to the handler never running. When the panel cannot be
+   opened, say so somewhere that cannot fail quietly — a tab. */
+let lastFailureReport = 0;
+async function reportFailurePage(reason) {
+  const now = Date.now();
+  if (now - lastFailureReport < 5000) return; // don't stack tabs on repeated presses
+  lastFailureReport = now;
+  try {
+    await ext.storage.local.set({ lastStartFailure: { reason, ts: now } });
+  } catch { /* storage is best-effort here */ }
+  try {
+    await ext.tabs.create({ url: `${ext.runtime.getURL('options/options.html')}#start-failed` });
+  } catch { /* nothing left to try */ }
+}
+
 ext.action.onClicked.addListener((tab) => {
-  /* Acknowledge the press before attempting anything that can fail. If this dot
-     never appears on the toolbar button, the worker is not running the handler at
-     all — a completely different fault from injection being refused, and worth
-     being able to tell apart at a glance. clearProblem() removes it on success. */
+  /* Record the press before attempting anything that can fail. Storage is the probe
+     of record here, not the badge: it is readable afterwards from the settings page,
+     so "did the click handler run at all?" stops being a question answered by
+     whether a coloured dot appeared. */
+  try {
+    ext.storage.local.set({ lastClick: { ts: Date.now(), tabId: tab?.id ?? null } });
+  } catch { /* best-effort */ }
+
   if (tab?.id) {
     try {
       ext.action.setBadgeBackgroundColor({ color: '#5a54e0', tabId: tab.id });
       ext.action.setBadgeText({ text: '•', tabId: tab.id });
-    } catch { /* badge APIs are best-effort */ }
+    } catch { /* badge rendering is Safari's business, not a signal we rely on */ }
   }
 
   if (BOOT_ERROR) {
-    flagProblem(tab?.id, `Distiller failed to start: ${BOOT_ERROR.message || BOOT_ERROR}`);
+    const reason = `Distiller failed to start: ${BOOT_ERROR.message || BOOT_ERROR}`;
+    flagProblem(tab?.id, reason);
+    reportFailurePage(reason);
     return;
   }
 
-  openPanel(tab).catch((e) => flagProblem(tab?.id, `Unexpected error: ${e?.message || e}`));
+  openPanel(tab).catch((e) => {
+    const reason = `Unexpected error: ${e?.message || e}`;
+    flagProblem(tab?.id, reason);
+    reportFailurePage(reason);
+  });
 });
 
 /* ---------- distillation ---------- */

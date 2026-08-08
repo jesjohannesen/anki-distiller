@@ -73,6 +73,30 @@ async function load() {
   bind();
   loadModels();
   probeAnki({ quiet: true });
+  renderDiagnostics();
+}
+
+/* Whether the toolbar button reaches the extension at all, answered from storage
+   rather than from whether a badge appeared — Safari's badge rendering is not
+   something the extension controls, so it is useless as evidence. */
+async function renderDiagnostics() {
+  const { lastClick, lastStartFailure } = await api.storage.local.get(['lastClick', 'lastStartFailure']);
+
+  const probe = $('clickProbe');
+  if (lastClick?.ts) {
+    const when = new Date(lastClick.ts);
+    const secs = Math.round((Date.now() - lastClick.ts) / 1000);
+    const ago = secs < 90 ? `${secs}s ago` : when.toLocaleString();
+    probe.textContent = `Toolbar button last reached the extension ${ago}. The click handler is running.`;
+  } else {
+    probe.textContent = 'The toolbar button has never reached the extension. Either it has not been pressed, or Safari is not delivering the click to it.';
+  }
+
+  if (location.hash === '#start-failed' && lastStartFailure?.reason) {
+    $('startFailedReason').textContent = lastStartFailure.reason;
+    $('startFailed').classList.remove('hidden');
+    $('advanced').open = true;
+  }
 }
 
 function bind() {

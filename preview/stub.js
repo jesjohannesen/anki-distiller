@@ -10,6 +10,8 @@
     frontField: 'Front', backField: 'Back', allowDuplicates: false,
     showCosts: true, ledgerLimit: 500, systemPromptOverride: '',
     modelsCache: null, modelsCachedAt: 0,
+    lastClick: { ts: Date.now() - 12000, tabId: 3 },
+    lastStartFailure: { reason: 'Safari has not granted access to this site.', ts: Date.now() - 12000 },
     costLedger: [
       { ts: Date.now() - 3600e3, model: 'anthropic/claude-sonnet-5', promptTokens: 4210, completionTokens: 980, cost: 0.0182, cards: 8, title: 'The bitter lesson of scaling', url: 'https://example.com/a' },
       { ts: Date.now() - 7200e3, model: 'openai/gpt-5.6-luna', promptTokens: 3100, completionTokens: 720, cost: 0.0007, cards: 6, title: 'Why currency pegs fail', url: 'https://example.com/b' },

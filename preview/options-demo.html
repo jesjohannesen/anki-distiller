@@ -16,6 +16,17 @@
       </div>
     </header>
 
+    <!-- ── Start failure (only shown when there is one) ───────── -->
+    <section class="card hidden" id="startFailed">
+      <h2>Distiller could not open on that page</h2>
+      <p class="hint" id="startFailedReason"></p>
+      <p class="hint">
+        The fact that you are reading this means the toolbar button <em>is</em> reaching
+        the extension — the failure is in opening the panel on the page, not in starting
+        Distiller. See <a href="https://github.com/jesjohannesen/anki-distiller/blob/main/docs/TROUBLESHOOTING.md" target="_blank" rel="noopener">Troubleshooting</a>.
+      </p>
+    </section>
+
     <!-- ── OpenRouter ─────────────────────────────────────────── -->
     <section class="card">
       <h2>OpenRouter</h2>
@@ -157,6 +168,11 @@
       <summary><h2>Advanced</h2><span class="hint">Cost tracking, sampling, custom prompt</span></summary>
 
       <div class="details-body">
+        <div class="field">
+          <span class="label">Diagnostics</span>
+          <span class="hint" id="clickProbe">Checking…</span>
+        </div>
+
         <label class="check">
           <input id="showCosts" type="checkbox">
           <span><strong>Track and show costs.</strong> Adds a spending panel here and a per-run price under the cards.
