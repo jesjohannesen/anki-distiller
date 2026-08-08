@@ -80,6 +80,33 @@ xcrun safari-web-extension-converter "$ROOT/Extension" \
 
 xattr -cr "$WORK/$APP_NAME" 2>/dev/null || true
 
+# Safari does not reliably start an MV3 service worker for a converted extension —
+# it registers none, so action.onClicked never fires and the toolbar button is inert.
+# Rewrite the *copied* manifest to use a non-persistent background page instead,
+# listing the libraries as scripts. Extension/manifest.json keeps `service_worker` so
+# the source stays loadable unpacked in Chrome; background.js handles both shapes.
+echo "==> Rewriting background to a non-persistent page (Safari)"
+/usr/bin/python3 - "$WORK/$APP_NAME/$APP_NAME Extension/Resources/manifest.json" <<'PY'
+import json, sys, pathlib
+
+path = pathlib.Path(sys.argv[1])
+manifest = json.loads(path.read_text())
+manifest["background"] = {
+    "scripts": [
+        "lib/shim.js",
+        "lib/settings.js",
+        "lib/ledger.js",
+        "lib/openrouter.js",
+        "lib/anki.js",
+        "lib/prompt.js",
+        "background.js",
+    ],
+    "persistent": False,
+}
+path.write_text(json.dumps(manifest, indent=2) + "\n")
+print(f"    background -> {json.dumps(manifest['background'])}")
+PY
+
 if [ "$XCODE_ONLY" = true ]; then
   open "$PROJECT"
   exit 0

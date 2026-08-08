@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.5 — 2026-08-08
+
+Safari never started the background service worker, so the button was inert.
+
+- No `action.onClicked` listener existed, because Safari registered no service
+  worker for the converted extension at all — nothing in the system log, no
+  background content in the Develop menu, and a press produced no acknowledgement
+  even from a handler that runs before anything that can fail. Permissions and
+  signing were both already correct by this point; neither was the cause.
+- `scripts/build-safari.sh` now rewrites the copied manifest to a **non-persistent
+  background page**, listing the libraries as scripts. `Extension/manifest.json`
+  keeps `service_worker` so the source still loads unpacked in Chrome, and
+  `background.js` detects which shape it is in and only calls `importScripts` when
+  the libraries are not already loaded. Both shapes are covered by tests.
+
+
 ## 1.0.3 — 2026-08-08
 
 Safari could never grant access to the pages being read.

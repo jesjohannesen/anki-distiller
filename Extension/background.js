@@ -3,23 +3,34 @@
    Owns every network call (OpenRouter, AnkiConnect) and all storage. The content
    script is pure UI and page reading; it never sees the API key. */
 
-/* A throw inside importScripts aborts evaluation of this whole file, which would
-   leave no click listener registered — the worker would be alive but deaf, and a
-   button press would do nothing with nothing logged anywhere. Catch it, and let the
-   click handler below report it instead. */
+/* Runs in two shapes:
+
+   - Chrome/Firefox: an MV3 service worker, where the libraries have to be pulled in
+     with importScripts.
+   - Safari: a non-persistent background *page*, because Safari does not reliably
+     start an MV3 service worker for a converted extension — it registered none at
+     all, so no click listener ever existed and the button was inert. There the
+     manifest lists the libraries as <script> tags (see scripts/build-safari.sh) and
+     they are already loaded by the time this file runs.
+
+   So: import only if the libraries are not already present. A throw inside
+   importScripts would otherwise abort evaluation of this whole file and leave no
+   click listener registered — alive but deaf, logging nothing. */
 let BOOT_ERROR = null;
-try {
-  importScripts(
-    'lib/shim.js',
-    'lib/settings.js',
-    'lib/ledger.js',
-    'lib/openrouter.js',
-    'lib/anki.js',
-    'lib/prompt.js',
-  );
-} catch (e) {
-  BOOT_ERROR = e;
-  console.error('[Distiller] library import failed:', e);
+if (typeof getSettings !== 'function') {
+  try {
+    importScripts(
+      'lib/shim.js',
+      'lib/settings.js',
+      'lib/ledger.js',
+      'lib/openrouter.js',
+      'lib/anki.js',
+      'lib/prompt.js',
+    );
+  } catch (e) {
+    BOOT_ERROR = e;
+    console.error('[Distiller] library import failed:', e);
+  }
 }
 
 /* Resolved without depending on lib/shim.js having loaded. Named `ext` rather than

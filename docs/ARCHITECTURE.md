@@ -109,6 +109,22 @@ call. When a provider omits it, `lib/openrouter.js` falls back to the cached cat
 pricing and marks the entry `costIsEstimate`, which the UI renders with an asterisk.
 Estimates are never silently presented as charges. Details in [COSTS.md](COSTS.md).
 
+## Two background shapes
+
+`Extension/manifest.json` declares `background.service_worker`, which is what Chrome
+and Firefox want. Safari gets something different: `scripts/build-safari.sh` rewrites
+the manifest *in the generated Xcode project* to a non-persistent background page
+listing `lib/*.js` and `background.js` as `scripts`.
+
+This is not a preference. Safari registered no service worker for the converted
+extension — the system log showed none, and a click handler installed before any
+fallible code never ran — so `action.onClicked` was never wired up and the toolbar
+button did nothing on every page, whatever the permissions said.
+
+`background.js` runs under both. It calls `importScripts` only when the libraries are
+not already defined, so the service-worker shape imports them and the background-page
+shape finds them already loaded from the manifest's script tags.
+
 ## Deliberate omissions
 
 - **No streaming.** It saves a few seconds of perceived latency and costs a
